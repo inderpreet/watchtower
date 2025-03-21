@@ -1,0 +1,214 @@
+from sqlalchemy import create_engine, Column, Integer, String, Double, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+# from sqlalchemy_imageattach.entity import Image, image_attachment
+from sqlalchemy.orm import sessionmaker, relationship
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+db_name = "inventory.db"
+DATABASE_URL = f"sqlite:///{db_name}"
+
+app = FastAPI()
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+class Part(Base):
+        __tablename__ = "parts"
+        id = Column(Integer, primary_key=True, index=True)
+        part_name = Column(String, index=True)
+        part_number = Column(String, index=True)
+        price = Column(Double, index=True)
+        description = Column(String, index=True)
+        type = Column(String, index=True)
+        # picture = image_attachment('PartPicture')
+        url1 = Column(String, index=True)
+        url2 = Column(String, index=True)
+        part1 = Column(String, index=True)
+        part2 = Column(String, index=True)
+
+
+# class PartPicture(Base, Image):
+#         part_id = Column(Integer, ForeignKey('parts.id'), primary_key=True)
+#         part = relationship('Parts')
+#         __tablename__ = "part_pictures"
+
+def create_db_and_tables():
+        Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+        db = SessionLocal()
+        try:
+                yield db
+        finally:
+                db.close()
+
+@app.get("/")
+async def root():
+        return {"message": "Hello World"}
+
+@app.get("/parts/")
+def get_parts():
+
+
+# @app.post('/parts/', response_model = Part)
+# def create_part(part: PartCreate, db:Session=Depends(get_db)):
+#         db_part = Part(part_name=part.name, part_number=part.number)
+#         db.add(db_part)
+#         db.commit()
+#         db.refresh(db_part)
+#         return db_part
+
+
+from fastapi import FastAPI, HTTPException, Depends, Query
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from pydantic import BaseModel
+from typing import List, Annotated
+
+
+db_name = "inventory.db"
+DATABASE_URL = f"sqlite:///{db_name}"
+
+
+# Create SQLAlchemy engine
+engine = create_engine(DATABASE_URL, echo=True)
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+SessionDep = Annotated[Session, Depends(get_session)]
+app = FastAPI()
+
+def create_db_and_tables():
+    # Create the database tables (only needed once)
+    Base.metadata.create_all(bind=engine)
+
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
+
+
+
+# Create a base class for the ORM models
+Base = declarative_base()
+
+# Define the SQLAlchemy ORM model
+class Part(Base):
+    __tablename__ = 'parts'  # Name of the table
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    description = Column(String)
+    price = Column(Integer)
+
+    def __repr__(self):
+        return f"<Part(id={self.id}, name={self.name}, price={self.price})>"
+    
+
+@app.get("/parts/")
+def list_all_parts(
+    session: SessionDep,
+) -> list[Part]:
+    parts = session.exec(select(Part).all())
+    return parts
+    
+
+
+
+
+
+
+
+
+
+
+# Pydantic model for part schema (used for request validation)
+class PartSchema(BaseModel):
+    id: int
+    name: str
+    description: str
+    price: int
+
+    class Config:
+        orm_mode = True  # To allow the Pydantic model to work with SQLAlchemy ORM models
+
+# Function to get a session (to be used in FastAPI routes)
+def get_db():
+    db = Session()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/")
+def root():
+    return {"message":"Hello BC"}
+
+# FastAPI route to get all parts
+@app.get("/parts/", response_model=List[PartSchema])
+# def get_parts(db: Session = next(get_db())):
+#     parts = db.query(Part).all()  # Query all parts from the database
+#     return parts
+
+@app.get("/parts")
+def get_parts(
+    session: Session,
+    offset: int = 0,
+) -> list[Part]:
+    parts = session.exec(select(Part).offset(offset).all())
+    return parts
+
+
+# FastAPI route to get a part by ID
+# @app.get("/parts/{part_id}", response_model=PartSchema)
+# def get_part(part_id: int, db: Session = next(get_db())):
+#     part = db.query(Part).filter(Part.id == part_id).first()
+#     if part is None:
+#         raise HTTPException(status_code=404, detail="Part not found")
+#     return part
+
+# FastAPI route to create a new part
+# @app.post("/parts/", response_model=PartSchema)
+# def create_part(part: PartSchema, db: Session = next(get_db())):
+#     new_part = Part(name=part.name, description=part.description, price=part.price)
+#     db.add(new_part)
+#     db.commit()
+#     db.refresh(new_part)
+#     return new_part
+
+# FastAPI route to update an existing part
+# @app.put("/parts/{part_id}", response_model=PartSchema)
+# def update_part(part_id: int, part: PartSchema, db: Session = next(get_db())):
+#     existing_part = db.query(Part).filter(Part.id == part_id).first()
+#     if existing_part is None:
+#         raise HTTPException(status_code=404, detail="Part not found")
+
+#     existing_part.name = part.name
+#     existing_part.description = part.description
+#     existing_part.price = part.price
+#     db.commit()
+#     db.refresh(existing_part)
+#     return existing_part
+
+# FastAPI route to delete a part
+# @app.delete("/parts/{part_id}")
+# def delete_part(part_id: int, db: Session = next(get_db())):
+#     part = db.query(Part).filter(Part.id == part_id).first()
+#     if part is None:
+#         raise HTTPException(status_code=404, detail="Part not found")
+#     db.delete(part)
+#     db.commit()
+#     return {"message": "Part deleted successfully"}
+
+
+
+# To run the app with Uvicorn, use the following command:
+# uvicorn <your_filename>:app --reload
